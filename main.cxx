@@ -231,16 +231,34 @@ Json::Value detectFaceInImage(IplImage *orig,
 
         cout << "Rt = " << Rt << endl;
 
-        cv::Matx41d pointOnMesh;
-        pointOnMesh(0, 0) = 0;
-        pointOnMesh(1, 0) = -1;
-        pointOnMesh(2, 0) = 0;
-        pointOnMesh(3, 0) = 1;
-        cv::Matx31d pointOnImage = /*cv::Matx33d(cameraMatrix)**/Rt*pointOnMesh;
+        cv::Matx41d zeroPointOnMesh;
+        zeroPointOnMesh(0, 0) = 0;
+        zeroPointOnMesh(1, 0) = 0;
+        zeroPointOnMesh(2, 0) = 0;
+        zeroPointOnMesh(3, 0) = 1;
+        cv::Matx31d zeroPointOnImage = Rt*zeroPointOnMesh;
+        cout << "zeroPointOnImage = " << zeroPointOnImage << endl;
 
-        cout << "pointOnImage = " << pointOnImage << endl;
-        cv::Matx31d normalizedPointOnImage = cv::normalize(cv::Mat(pointOnImage));
+        cv::Matx41d minusOnePointOnMesh;
+        minusOnePointOnMesh(0, 0) = 0;
+        minusOnePointOnMesh(1, 0) = -1;
+        minusOnePointOnMesh(2, 0) = 0;
+        minusOnePointOnMesh(3, 0) = 1;
+        cv::Matx31d minusOnePointOnImage = Rt*minusOnePointOnMesh;
+
+        cv::Mat normalizedPointOnImage;
+
+        cv::normalize(cv::Mat(minusOnePointOnImage - zeroPointOnImage ),normalizedPointOnImage);
+        normalizedPointOnImage = normalizedPointOnImage * 100;
         cout << "normalizedPointOnImage = " << normalizedPointOnImage;
+
+        int end_x = cv::Vec3d(normalizedPointOnImage)(0)
+                 + currentFace["face-center"]["x"].asFloat();
+        int end_y = cv::Vec3d(normalizedPointOnImage)(1) +
+                currentFace["face-center"]["y"].asFloat();
+
+        cvLine(orig, cvPoint(currentFace["face-center"]["x"].asFloat(), currentFace["face-center"]["y"].asFloat()),
+                cvPoint(end_x, end_y), CV_RGB(255, 255, 255));
 
         root.append(currentFace);
     }
