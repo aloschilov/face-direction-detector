@@ -22,6 +22,38 @@
 
 using namespace std;
 
+/*
+*/
+void drawVectorFromFaceCenter( CvArr *orig,  double v[4] , const Json::Value &currentFace, CvScalar color, const cv::Matx34d &Rt, const cv::Mat &cameraMatrix) {
+    cv::Matx41d zeroPointOnMesh;
+    zeroPointOnMesh(0, 0) = 0;
+    zeroPointOnMesh(1, 0) = 0;
+    zeroPointOnMesh(2, 0) = 0;
+    zeroPointOnMesh(3, 0) = 1;
+    cv::Matx31d zeroPointOnImage = cv::Matx33d(cameraMatrix)*Rt*zeroPointOnMesh;
+    cout << "zeroPointOnImage = " << zeroPointOnImage << endl;
+
+    cv::Matx41d minusOnePointOnMesh;
+    minusOnePointOnMesh(0, 0) = v[0];
+    minusOnePointOnMesh(1, 0) = v[1];
+    minusOnePointOnMesh(2, 0) = v[2];
+    minusOnePointOnMesh(3, 0) = v[3];
+    cv::Matx31d minusOnePointOnImage = cv::Matx33d(cameraMatrix)*Rt*minusOnePointOnMesh;
+
+    cv::Mat normalizedPointOnImage;
+
+    cv::normalize(cv::Mat(minusOnePointOnImage - zeroPointOnImage ),normalizedPointOnImage);
+    normalizedPointOnImage = normalizedPointOnImage * 100;
+
+    int end_x = cv::Vec3d(normalizedPointOnImage)(0)
+             + currentFace["face-center"]["x"].asFloat();
+    int end_y = cv::Vec3d(normalizedPointOnImage)(1) +
+            currentFace["face-center"]["y"].asFloat();
+
+    cvLine(orig, cvPoint(currentFace["face-center"]["x"].asFloat(), currentFace["face-center"]["y"].asFloat()),
+            cvPoint(end_x, end_y), color);
+}
+
 Json::Value detectFaceInImage(IplImage *orig,
                               IplImage* input,
                               CvHaarClassifierCascade* cascade,
@@ -157,37 +189,35 @@ Json::Value detectFaceInImage(IplImage *orig,
 
         // landmarks coordiates from 3D model
 
-        float modX[7]={-0.23260, 1.19237,  -0.60929, 1.53890,  -1.32542, 2.38696,  0.54571 };
-        float modY[7]={-6.82082, -6.80873, -6.43984, -6.36571, -6.62015, -6.48895, -8.01948};
-        float modZ[7]={71.57423, 71.47037, 68.69979, 68.66721, 71.55910, 71.48106, 69.76753};
+        float modX[6]={-0.23260, 1.19237,  (-0.60929 + 1.53890)/2.0,  -1.32542, 2.38696,  0.54571 };
+        float modY[6]={-6.82082, -6.80873, (-6.43984 + (-6.36571))/2.0, -6.62015, -6.48895, -8.01948};
+        float modZ[6]={71.57423, 71.47037, (68.69979 +  68.66721)/2.0, 71.55910, 71.48106, 69.76753};
 
         vector<cv::Point3f> model_points;
 
-        for (int i=0;i<7;i++) {
+        for (int i=0;i<5;i++) {
             model_points.push_back(cv::Point3f(modX[i],modY[i],modZ[i]));
         }
 
         // detected landmark coordinates
 
 
-        float imX[7]={ currentFace["canthus-rl"]["x"].asFloat(),
+        float imX[6]={ currentFace["canthus-rl"]["x"].asFloat(),
                        currentFace["canthus-lr"]["x"].asFloat(),
-                       currentFace["mouth-corner-r"]["x"].asFloat(),
-                       currentFace["mouth-corner-l"]["x"].asFloat(),
+                       (currentFace["mouth-corner-r"]["x"].asFloat() + currentFace["mouth-corner-l"]["x"].asFloat())/2.0,
                        currentFace["canthus-rr"]["x"].asFloat(),
                        currentFace["canthus-ll"]["x"].asFloat(),
                        currentFace["nose"]["x"].asFloat()};
-        float imY[7]={ currentFace["canthus-rl"]["y"].asFloat(),
+        float imY[6]={ currentFace["canthus-rl"]["y"].asFloat(),
                        currentFace["canthus-lr"]["y"].asFloat(),
-                       currentFace["mouth-corner-r"]["y"].asFloat(),
-                       currentFace["mouth-corner-l"]["y"].asFloat(),
+                       (currentFace["mouth-corner-r"]["y"].asFloat() + currentFace["mouth-corner-l"]["y"].asFloat())/2.0,
                        currentFace["canthus-rr"]["y"].asFloat(),
                        currentFace["canthus-ll"]["y"].asFloat(),
                        currentFace["nose"]["y"].asFloat()};
 
         vector<cv::Point2f> image_points;
 
-        for (int i=0;i<7;i++)
+        for (int i=0;i<5;i++)
         {
             image_points.push_back(cv::Point2f(imX[i],imY[i]));
         }
@@ -197,9 +227,9 @@ Json::Value detectFaceInImage(IplImage *orig,
         cv::Mat distCoeffs = cv::Mat((CvMat*)cvLoad( "Distortion.xml" ));
 
 
-        solvePnPRansac(cv::Mat(model_points),
+        solvePnP(cv::Mat(model_points),
                        cv::Mat(image_points),
-                       cameraMatrix, distCoeffs, rvec, tvec, false);
+                       cameraMatrix, distCoeffs, rvec, tvec, false, CV_EPNP);
 
         cv::Matx33d R;
         cv::Rodrigues(rvec, R);
@@ -220,45 +250,15 @@ Json::Value detectFaceInImage(IplImage *orig,
             }
         }
 
-        cv::Mat imagePoints;
-        projectPoints(cv::Mat(model_points), rvec, tvec, cameraMatrix, distCoeffs, imagePoints);
+        double minusYVector[4] = {0, -1, 0, 1};
+        double xVector[4] = {1, 0, 0, 1};
+        double yVector[4] = {0, 1, 0, 1};
+        double zVector[4] = {0, 0, 1, 1};
 
-        cout << imagePoints;
-
-        cout << currentFace["canthus-rl"]["x"];
-
-        cout << "cameraMatrix" << endl << cameraMatrix << endl;
-
-        cout << "Rt = " << Rt << endl;
-
-        cv::Matx41d zeroPointOnMesh;
-        zeroPointOnMesh(0, 0) = 0;
-        zeroPointOnMesh(1, 0) = 0;
-        zeroPointOnMesh(2, 0) = 0;
-        zeroPointOnMesh(3, 0) = 1;
-        cv::Matx31d zeroPointOnImage = Rt*zeroPointOnMesh;
-        cout << "zeroPointOnImage = " << zeroPointOnImage << endl;
-
-        cv::Matx41d minusOnePointOnMesh;
-        minusOnePointOnMesh(0, 0) = 0;
-        minusOnePointOnMesh(1, 0) = -1;
-        minusOnePointOnMesh(2, 0) = 0;
-        minusOnePointOnMesh(3, 0) = 1;
-        cv::Matx31d minusOnePointOnImage = Rt*minusOnePointOnMesh;
-
-        cv::Mat normalizedPointOnImage;
-
-        cv::normalize(cv::Mat(minusOnePointOnImage - zeroPointOnImage ),normalizedPointOnImage);
-        normalizedPointOnImage = normalizedPointOnImage * 100;
-        cout << "normalizedPointOnImage = " << normalizedPointOnImage;
-
-        int end_x = cv::Vec3d(normalizedPointOnImage)(0)
-                 + currentFace["face-center"]["x"].asFloat();
-        int end_y = cv::Vec3d(normalizedPointOnImage)(1) +
-                currentFace["face-center"]["y"].asFloat();
-
-        cvLine(orig, cvPoint(currentFace["face-center"]["x"].asFloat(), currentFace["face-center"]["y"].asFloat()),
-                cvPoint(end_x, end_y), CV_RGB(255, 255, 255));
+        drawVectorFromFaceCenter(orig, minusYVector, currentFace, CV_RGB(255, 255, 255), Rt, cameraMatrix);
+        drawVectorFromFaceCenter(orig, xVector, currentFace, CV_RGB(255, 0, 0), Rt, cameraMatrix);
+        drawVectorFromFaceCenter(orig, yVector, currentFace, CV_RGB(0, 255, 0), Rt, cameraMatrix);
+        drawVectorFromFaceCenter(orig, zVector, currentFace, CV_RGB(0, 0, 255), Rt, cameraMatrix);
 
         root.append(currentFace);
     }
