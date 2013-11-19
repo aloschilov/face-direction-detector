@@ -10,10 +10,14 @@ IF(UNIX)
   IF(APPLE)
     ADD_DEFINITIONS(-DAPPLE)
     MESSAGE("Building on APPLE")
+    SET(JSONCPP_INCLUDE_DIR /Users/aloschil/workspace/jsoncpp-src-0.5.0/include)    
+    SET(JSONCPP_LIB_DIR /Users/aloschil/workspace/jsoncpp-src-0.5.0/libs/linux-gcc-4.2.1)
+    SET(JSONCPP_LIBRARIES libjson_linux-gcc-4.2.1_libmt.dylib)
   ELSE(APPLE)
     SET(LINUX 1)
     ADD_DEFINITIONS(-DLINUX)
     MESSAGE("Building on LINUX")
+    SET(JSONCPP_LIBRARIES jsoncpp)
   ENDIF(APPLE)
 ENDIF(UNIX)
 
@@ -44,7 +48,8 @@ SET(CMAKE_CXX_FLAGS "-D_ENGLISH")
 ######## INCLUDE AND LINK DIRECTORIES ########
 
 INCLUDE_DIRECTORIES(
-	/usr/local/include
+  /usr/local/include
+  ${JSONCPP_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENCV_INCLUDE_DIR}
@@ -52,12 +57,13 @@ INCLUDE_DIRECTORIES(
 )
 
 LINK_DIRECTORIES(
-	${FLANDMARK_LINK_DIRS}
-	${OpenCV_LIB_DIR}
+  ${FLANDMARK_LINK_DIRS}
+  ${OpenCV_LIB_DIR}
+  ${JSONCPP_LIB_DIR}
 )
 
 
 ######## MAIN EXECUTABLES ########
 
 add_executable(face-direction-detector main.cxx)
-TARGET_LINK_LIBRARIES(face-direction-detector ${AMT_LIBS} ${FLANDMARK_LIBRARIES} ${OpenCV_LIBS} jsoncpp)
+TARGET_LINK_LIBRARIES(face-direction-detector ${AMT_LIBS} ${FLANDMARK_LIBRARIES} ${OpenCV_LIBS} ${JSONCPP_LIBRARIES})
