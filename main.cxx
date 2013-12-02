@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "flandmark_detector.h"
-#include "json/json.h"
+#include "jsoncpp/json/json.h"
 
 using namespace std;
 
